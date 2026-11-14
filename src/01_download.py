@@ -1,7 +1,7 @@
-"""Step 1: download the last 12 months of BTS on-time data.
+"""Step 1: download the last 24 months of BTS on-time data.
 
 Finds the most recent month BTS has published, then downloads that month
-and the 11 before it into data/raw/. Files already on disk are skipped.
+and the 23 before it into data/raw/. Files already on disk are skipped.
 """
 import os
 import sys
@@ -11,7 +11,7 @@ import urllib.error
 URL = ("https://transtats.bts.gov/PREZIP/"
        "On_Time_Reporting_Carrier_On_Time_Performance_1987_present_{year}_{month}.zip")
 RAW_DIR = "data/raw"
-N_MONTHS = 12
+N_MONTHS = 24
 
 
 def file_exists_online(year, month):
@@ -47,11 +47,11 @@ def main():
     today = datetime.date.today()
     latest = find_latest_month(today.year, today.month)
     if latest is None:
-        print("Could not find any BTS file online in the last 12 months.")
+        print("Could not find any BTS file online in the last 12 months (searched back from today).")
         sys.exit(1)
     print(f"Most recent month available: {latest[0]}-{latest[1]:02d}")
 
-    # Build the list of 12 months, oldest first.
+    # Build the list of months, oldest first.
     months = []
     year, month = latest
     for _ in range(N_MONTHS):
@@ -85,7 +85,7 @@ def main():
     with open(os.path.join(RAW_DIR, "months.txt"), "w") as f:
         for year, month in months:
             f.write(f"{year}-{month:02d}\n")
-    print("All 12 months downloaded.")
+    print(f"All {N_MONTHS} months downloaded.")
 
 
 if __name__ == "__main__":

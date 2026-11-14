@@ -1,0 +1,16 @@
+feature,single_feature_auc,mean
+dep_hour,0.594,14.633
+day_of_week,0.529,3.966
+days_to_holiday,0.513,23.669
+distance,0.513,708.325
+sched_block_min,0.516,127.58
+same_hour_departures,0.503,41.923
+route_delay_rate,0.545,0.198
+has_inbound,0.54,0.852
+turn_min,0.516,104.565
+inbound_delay_known,0.593,0.806
+inbound_dep_delay,0.665,2.837
+recent_known,0.522,0.931
+recent_avg_delay,0.682,9.244
+recent_count,0.535,60.064
+backlog_count,0.686,5.46

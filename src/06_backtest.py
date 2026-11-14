@@ -7,6 +7,13 @@ because the version in features.parquet was built with later months too.
 Reads:  data/features/features.parquet
 Writes: outputs/phase5_backtest.csv
         outputs/backtest.png
+        outputs/phase7a_drift_offset.csv   before vs after the daily drift offset
+        outputs/drift_offset.png
+
+Drift offset (Phase 7a): every fold's predictions are out-of-sample, so they
+are stitched into one series and each day's offset is fitted on the 7 days
+before it. The first 7 days of the first backtest month have no history and
+get no offset.
 """
 import os
 import numpy as np
@@ -18,6 +25,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import roc_auc_score
 
 import config
+import drift
 
 OUT_DIR = "outputs"
 MIN_TRAIN_MONTHS = 6     # first backtest month needs at least this much history
@@ -111,6 +119,7 @@ def main():
 
     months = sorted(df["year_month"].unique())
     rows = []
+    stitched = []   # out-of-sample predictions from every fold
     for m_index in range(MIN_TRAIN_MONTHS, len(months)):
         month = months[m_index]
         train = df[df["year_month"] < month].copy()
@@ -126,6 +135,9 @@ def main():
         model.fit(prepare(train, features, dest_categories), train[config.LABEL])
         p = model.predict_proba(prepare(test, features, dest_categories))[:, 1]
         y = test[config.LABEL]
+        fold = test[["flight_date", "year_month", config.LABEL]].copy()
+        fold["p"] = p
+        stitched.append(fold)
         rows.append({
             "month": month,
             "train_months": m_index,
@@ -151,6 +163,73 @@ def main():
     corr = np.corrcoef(table["actual_delay_rate"], table["predicted_minus_actual_pts"])[0, 1]
     print(f"Correlation between month delay rate and (predicted - actual): {corr:.2f}")
     plot_backtest(table, os.path.join(OUT_DIR, "backtest.png"))
+
+    drift_comparison(pd.concat(stitched, ignore_index=True))
+
+
+def drift_comparison(stitched):
+    adjusted, offsets = drift.apply_offsets(stitched, "p", config.LABEL)
+    stitched["p_offset"] = adjusted
+    print(f"\nDays with full 7-day history: {int(offsets['has_history'].sum())} of {len(offsets)}")
+
+    rows = []
+    for month, group in stitched.groupby("year_month"):
+        y = group[config.LABEL]
+        row = {"month": month, "actual_delay_rate": round(float(y.mean()), 4)}
+        for label, col in [("before", "p"), ("after", "p_offset")]:
+            p = group[col]
+            row[f"mean_predicted_{label}"] = round(float(p.mean()), 4)
+            row[f"predicted_minus_actual_pts_{label}"] = round(100 * float(p.mean() - y.mean()), 2)
+            row[f"calibration_error_{label}"] = round(calibration_error(y, p), 4)
+            row[f"roc_auc_{label}"] = round(roc_auc_score(y, p), 4)
+        rows.append(row)
+    table = pd.DataFrame(rows)
+    table.to_csv(os.path.join(OUT_DIR, "phase7a_drift_offset.csv"), index=False)
+    print(table.to_string(index=False))
+
+    summary = []
+    for label in ["before", "after"]:
+        corr = np.corrcoef(table["actual_delay_rate"], table[f"predicted_minus_actual_pts_{label}"])[0, 1]
+        summary.append({
+            "version": label,
+            "mean_calibration_error": round(table[f"calibration_error_{label}"].mean(), 4),
+            "max_calibration_error": round(table[f"calibration_error_{label}"].max(), 4),
+            "mean_abs_predicted_minus_actual_pts": round(table[f"predicted_minus_actual_pts_{label}"].abs().mean(), 2),
+            "month_severity_correlation": round(corr, 2),
+            "mean_roc_auc": round(table[f"roc_auc_{label}"].mean(), 4),
+        })
+    summary = pd.DataFrame(summary)
+    summary.to_csv(os.path.join(OUT_DIR, "phase7a_drift_summary.csv"), index=False)
+    print()
+    print(summary.to_string(index=False))
+    plot_drift(table, os.path.join(OUT_DIR, "drift_offset.png"))
+
+
+def plot_drift(table, path):
+    fig, axes = plt.subplots(2, 1, figsize=(7, 6.5), sharex=True)
+    months = table["month"]
+    styles = [("before", "Before (model only)", ORANGE, "s"),
+              ("after", "After daily 7-day offset", BLUE, "o")]
+    for label, name, color, marker in styles:
+        axes[0].plot(months, table[f"predicted_minus_actual_pts_{label}"], color=color,
+                     linewidth=2, marker=marker, markersize=6, label=name)
+        axes[1].plot(months, table[f"calibration_error_{label}"], color=color,
+                     linewidth=2, marker=marker, markersize=6, label=name)
+    axes[0].axhline(0, color="#9a9a96", linewidth=1)
+    axes[0].set_ylabel("Predicted minus actual\ndelay rate (points)", color=INK)
+    axes[0].set_title("Drift fix: monthly bias and calibration error, before vs after",
+                      color=INK, fontsize=11)
+    axes[0].legend(frameon=False, fontsize=9)
+    axes[1].set_ylabel("Calibration error", color=INK)
+    axes[1].set_ylim(bottom=0)
+    for ax in axes:
+        ax.grid(color=GRID, linewidth=0.8)
+        for side in ["top", "right"]:
+            ax.spines[side].set_visible(False)
+    plt.setp(axes[1].get_xticklabels(), rotation=45, ha="right")
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
 
 
 if __name__ == "__main__":

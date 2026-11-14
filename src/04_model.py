@@ -20,6 +20,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, average_precision_score, brier_score_loss
 
 import config
+import drift
 
 FEATURE_DIR = "data/features"
 MODEL_DIR = "data/model"
@@ -31,6 +32,9 @@ ORANGE = "#eb6834"
 AQUA = "#1baf7a"
 INK = "#2b2b2b"
 GRID = "#e4e3df"
+
+# Models that also get the daily drift offset (Phase 7a).
+OFFSET_MODELS = ["lgbm_swap_safe"]
 
 # Feature groups, used to test what each group adds.
 GROUPS = {
@@ -218,6 +222,24 @@ def main():
         if name == "lgbm_swap_safe":
             main_model = model
 
+    # 2b) Daily drift offset (Phase 7a). Each day's predictions are shifted by
+    # one log-odds offset fitted on the 7 completed days before it. For test
+    # days those 7 days are validation or earlier test days, all out-of-sample.
+    # Only the test month is scored: early validation days would need training
+    # days, where predictions are in-sample.
+    both = pd.concat([valid, test])
+    for name in OFFSET_MODELS:
+        adjusted, offsets = drift.apply_offsets(both, "p_" + name, config.LABEL)
+        both["p_" + name + "_offset"] = adjusted
+        valid["p_" + name + "_offset"] = both.loc[valid.index, "p_" + name + "_offset"]
+        test["p_" + name + "_offset"] = both.loc[test.index, "p_" + name + "_offset"]
+        results.append(score(name + "_offset", "test", test[config.LABEL], test["p_" + name + "_offset"]))
+        test_days = offsets[offsets["flight_date"].isin(test["flight_date"].unique())].copy()
+        test_days["model"] = name
+        test_days["offset"] = test_days["offset"].round(4)
+        test_days.to_csv(os.path.join(OUT_DIR, f"phase7a_test_offsets_{name}.csv"), index=False)
+        print(f"{name}: test days with full 7-day history: {int(test_days['has_history'].sum())} of {len(test_days)}")
+
     results = pd.DataFrame(results)
     results.to_csv(os.path.join(OUT_DIR, "phase3_results.csv"), index=False)
     print()
@@ -278,6 +300,8 @@ def main():
     keep = (["row_id", "split", "year_month", "flight_date", "flight_number", "tail",
              "sched_dep", "dep_hour", "dep_delay", config.LABEL,
              "p_logistic_all", "p_logistic_no_inbound", "p_lgbm_all", "p_lgbm_swap_safe", "p_lgbm_no_inbound"])
+    for name in OFFSET_MODELS:
+        keep.append("p_" + name + "_offset")
     predictions = pd.concat([valid[keep], test[keep]], ignore_index=True)
     predictions.to_parquet(os.path.join(MODEL_DIR, "predictions.parquet"), index=False)
     print("\nSaved predictions and charts.")

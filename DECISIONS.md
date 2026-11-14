@@ -35,3 +35,25 @@ Answer (word for word):
 How this was applied (Claude's notes, not part of the answer):
 - Checkpoint 4 is not held as a stop. Phase 4 uses the original defaults S = 3 spares, R = 0.6, H = 4 hours; the S and R sensitivity is still produced and reported.
 - Option (b) scored on test once: ROC-AUC 0.7691, PR-AUC 0.5386, calibration error 0.0131. Its mean prediction is 21.2% vs 22.3% actual, so the chosen model under-predicts by 1.1 points; the 1.6-point figure was for option (a). The limitation note uses the (b) figure.
+
+## Reproduction check (2026-11-14)
+
+Full pipeline rerun from an empty `data/` folder and a fresh virtual environment built only from `requirements.txt` (BTS latest month still 2026-08). All 11 CSVs and all 4 PNGs in `outputs/` were byte-identical to the committed versions. `brief.pdf` differed only in its embedded creation date and file ID; its text was identical.
+
+## Phase 7 defaults (review)
+
+Phase 7 was requested to run to the end without stopping. Change to 7d requested during the phase (word for word):
+> Change 7d: instead of Streamlit, build a static demo in docs/ (index.html + a small JSON of precomputed results for every test-month day, every S in 1–5 and every H in 2–8h) so it can be hosted on GitHub Pages and never sleeps. Plain HTML + simple JavaScript + one chart library from a CDN. Must work well on a phone. Add Open Graph title, description and a preview image so the LinkedIn link preview looks clean. Keep the banner "Independent demo on public BTS data. Not affiliated with Delta." Link the GitHub repo and brief.pdf from the page. Add GitHub Pages setup steps to the README.
+
+GitHub username given: Bhanukokkula; repo: atl-delay-spares.
+
+Choices made by Claude (please review):
+
+**7a. Drift fix**
+- Offset = one log-odds shift per day, fitted so the average adjusted prediction over the previous 7 calendar days equals the share of those flights that were really delayed (halving search, `src/drift.py`). The current day is never used.
+- "Completed" day: a flight's label is known 15 minutes after its scheduled departure, so all of day d-1's labels are known by 00:15 on day d, before any decision on day d.
+- A day gets an offset only if all 7 previous days have out-of-sample predictions; otherwise no offset. Test month: 31 of 31 days had history (the 7 days come from validation and earlier test days). Backtest: 542 of 549 days (the first 7 days of Mar 2025 had none).
+- Backtest: each fold's out-of-sample predictions are stitched into one series before fitting offsets, so a day's offset at a month boundary uses the previous fold's predictions (from a model trained on one month less).
+- Validation is not scored with the offset: its first week would need in-sample training-day predictions.
+- Result: it helps calibration and does not change ranking. Backtest mean calibration error 0.0191 → 0.0107, month-severity correlation −0.87 → −0.07, mean ROC-AUC 0.7640 → 0.7633. Four months got slightly worse calibration. Test month: calibration error 0.0131 → 0.0094, mean prediction 21.2% → 22.1% vs 22.3% actual.
+- Phase 4 is not changed in this step; the model and offset used for Phase 4 are chosen in 7b.

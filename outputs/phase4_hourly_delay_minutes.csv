@@ -1,0 +1,25 @@
+dep_hour,delayed_flights,avg_delay_min,source
+0,0,58.9,overall (few flights)
+1,0,58.9,overall (few flights)
+2,0,58.9,overall (few flights)
+3,0,58.9,overall (few flights)
+4,0,58.9,overall (few flights)
+5,0,58.9,overall (few flights)
+6,76,53.9,hour
+7,1530,50.8,hour
+8,3339,51.2,hour
+9,4271,49.1,hour
+10,3458,55.4,hour
+11,4197,53.8,hour
+12,4016,55.0,hour
+13,3917,51.6,hour
+14,3979,53.6,hour
+15,6919,54.6,hour
+16,6344,56.3,hour
+17,5281,61.4,hour
+18,4788,62.5,hour
+19,6966,61.4,hour
+20,6051,62.8,hour
+21,6550,65.1,hour
+22,7173,71.0,hour
+23,1615,77.4,hour

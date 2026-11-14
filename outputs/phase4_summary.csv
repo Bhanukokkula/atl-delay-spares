@@ -1,0 +1,4 @@
+S,R,H,method,days,expected_min_removed_per_day,assignments_per_day,share_assigned_really_delayed_pct,actual_min_removed_per_day_if_R_holds,pct_of_optimization
+3,0.6,4,optimization,31,239.7,13.6,46.7,209.7,100.0
+3,0.6,4,greedy,31,219.4,11.8,47.7,205.5,91.5
+3,0.6,4,random,31,86.5,11.1,21.9,90.0,36.1

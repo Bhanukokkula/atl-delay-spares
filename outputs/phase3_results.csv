@@ -1,0 +1,11 @@
+model,split,flights,actual_delay_rate,mean_predicted,roc_auc,pr_auc,brier,calibration_error
+logistic_all,valid,41927,0.244,0.244,0.7874,0.6004,0.1416,0.019
+logistic_all,test,20887,0.223,0.22,0.7654,0.5264,0.1414,0.0161
+logistic_no_inbound,valid,41927,0.244,0.241,0.7401,0.5476,0.1513,0.0154
+logistic_no_inbound,test,20887,0.223,0.223,0.7165,0.4618,0.1519,0.0191
+lgbm_all,valid,41927,0.244,0.235,0.8244,0.6792,0.1266,0.0087
+lgbm_all,test,20887,0.223,0.207,0.8003,0.6094,0.129,0.0152
+lgbm_swap_safe,valid,41927,0.244,0.236,0.795,0.619,0.1382,0.0078
+lgbm_swap_safe,test,20887,0.223,0.212,0.7691,0.5386,0.1402,0.0131
+lgbm_no_inbound,valid,41927,0.244,0.232,0.7538,0.5648,0.1482,0.0119
+lgbm_no_inbound,test,20887,0.223,0.213,0.7263,0.4759,0.1496,0.0117

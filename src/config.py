@@ -36,6 +36,11 @@ NUMERIC_FEATURES = [
 ]
 # Inbound features, removed together for the "no inbound" comparison run.
 INBOUND_FEATURES = ["has_inbound", "turn_min", "inbound_delay_known", "inbound_dep_delay"]
+# The inbound features most exposed to aircraft swaps. Removing them gives the
+# "swap-safe" feature set (option b, chosen at Checkpoint 3).
+SWAP_EXPOSED = ["turn_min", "has_inbound", "inbound_delay_known"]
+# Prediction column used by the spare-aircraft step.
+CHOSEN_PREDICTION = "p_lgbm_swap_safe"
 CATEGORICAL_FEATURES = ["dest"]
 FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
 

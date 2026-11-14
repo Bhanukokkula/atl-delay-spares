@@ -1,0 +1,8 @@
+experiment,valid_roc_auc,change_vs_all_features,helped
+drop calendar,0.8195,-0.0048,yes
+drop route,0.817,-0.0073,yes
+drop congestion,0.8235,-0.0008,no
+drop inbound,0.7538,-0.0706,yes
+drop recent_departures,0.8223,-0.0021,yes
+drop backlog,0.8189,-0.0054,yes
+"drop turn_min, has_inbound, inbound_delay_known",0.795,-0.0294,yes

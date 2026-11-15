@@ -164,29 +164,29 @@ Test-month days are resampled with replacement 1,000 times. Whole days are resam
 
 ## What didn't work
 
-> **[EDIT IN MY WORDS]** Rough draft. Numbers are from `outputs/phase3_experiments.csv`, `outputs/phase3_feature_importance.csv`, `outputs/phase7c_bootstrap.csv`, `outputs/phase7a_drift_offset.csv` and `DECISIONS.md`.
+Not everything I tried worked. Here is what fell flat, and what I learned from it.
 
-- `same_hour_departures` (congestion): dropping it changed validation AUC by only −0.0008.
-- `distance`, `sched_block_min`, `recent_known`: at most 0.1% of the chosen model's importance each.
-- In-sample route delay rate: looked better than it was (0.565 AUC on its own vs 0.544 out-of-fold, same 12-month data). Replaced with out-of-fold.
-- `month`: with 12 months of data, training never saw Jun–Aug. Cut, and the data was extended to 24 months.
-- `turn_min`, `has_inbound`, `inbound_delay_known`: added 0.029 validation AUC, but that gain is at least partly swap leakage, so they were dropped from the decision model.
-- Logistic regression: 0.765 test AUC vs 0.800 for LightGBM on the same features.
-- Optimization vs greedy: the optimization model was expected to matter more. On actual outcomes it beat greedy by 1.7%.
-- ATL weather: better on validation, but the test-month gain (+0.0031 AUC) has an interval that includes zero.
-- Daily drift correction: fixed most monthly bias, but made 5 of 18 backtest months slightly worse, and on the test month it improved the weather model's calibration error only from 0.0144 to 0.0135.
+- **Counting how busy the hour is didn't help.** I thought the number of Delta flights scheduled in the same hour would signal congestion. The model barely used it: taking it out lowered validation AUC by only 0.0008.
+- **Some schedule details turned out to be noise.** Distance, scheduled flight time, and whether any flight had left recently each carried 0.1% or less of the model's weight. Knowing where a flight goes mattered; knowing how far didn't.
+- **My first route delay rate was too optimistic.** At first I computed each route's delay rate using every training flight, including the flight being predicted, so the feature had partly seen the answer. Once I computed it without the flight's own month, it scored 0.544 on its own instead of 0.565. The smaller number is the honest one.
+- **"Month" couldn't work with one year of data.** With only 12 months, the model would have trained on September to May and then been tested on June to August, months it had never seen. I dropped the feature and went back to 24 months of data so training included a summer.
+- **The best-looking features were partly cheating.** Turn time and the "is there an inbound aircraft" flags added 0.029 validation AUC. But public data records the plane that *actually* flew, not the one planned. When operations swaps in a different plane because something went wrong, these features quietly reveal that swap. I took them out of the model used for decisions.
+- **The simple model lost clearly.** Logistic regression reached 0.765 test AUC; LightGBM reached 0.800 on the same features.
+- **The optimization model wasn't much better than a simple rule.** I expected the optimizer to beat "give the spare to the riskiest flight first" by a lot. On what actually happened, it won by only 1.7%.
+- **Weather didn't clearly help.** Adding Atlanta weather looked better on validation, so I kept it. But on the test month the gain was +0.0031 AUC, and the 95% range runs from −0.0005 to +0.0071. That range includes zero, so I can't say weather really helps.
+- **The daily correction isn't a cure-all.** It fixed most of the month-to-month bias, but it made 5 of 18 months slightly worse. On the test month it barely changed calibration error for the weather model (0.0144 to 0.0135).
 
 ## Why I made these choices
 
-> **[EDIT IN MY WORDS]** Rough draft.
+The rule I kept coming back to: **only use what someone would actually know two hours before the flight, and don't let the results look better than they are.**
 
-- Dropped cancellations because the label should mean one thing, and BTS doesn't say when a cancellation was known.
-- Picked the turn cutoff from the data (training months only), not a rule of thumb.
-- Used a swap-safe model for spare decisions because a model that detects swaps would make spare allocation look better than it is. A swap *is* a spare being used.
-- Kept calibration in view because the spare decision multiplies probabilities by minutes. That's also why I added the daily correction: a model that under-predicts bad months under-values spares exactly when they matter most.
-- Chose the weather model on validation, not test, and then reported the test interval honestly, even though it includes zero.
-- Resampled whole days for the intervals because flights on the same day aren't independent.
-- Made greedy and random use the same feasibility rule as the optimization so the comparison is fair.
+- **I left out cancelled flights.** I wanted "delayed" to mean one clear thing: the flight left 15 or more minutes late. Public data also doesn't say *when* a cancellation was announced, so some were probably already known two hours ahead.
+- **I let the data pick the turn-time cutoff.** Instead of guessing a minimum turnaround, I looked at delay rates by turn time in the training months. Below 40 minutes, flights were delayed 41–91% of the time, a sign of swapped aircraft rather than real plans. So 40 minutes became the cutoff.
+- **I chose the "swap-safe" model for the spare decisions on purpose.** A swap *is* a spare aircraft being used. A model that can sense swaps would look great at "finding flights that needed a spare," but only because it had peeked at the answer. I'd rather show a slightly lower honest number.
+- **I cared about probabilities being right, not just the ranking.** The spare plan multiplies each probability by expected delay minutes, so if the model under-predicts bad days, it under-values spares exactly when they matter most. That's why I added the daily correction.
+- **I made every choice on validation data, never the test month.** I picked the weather model because it won on validation. Then I reported its test result as it came out, even though the improvement may not be real.
+- **I measured uncertainty by resampling whole days.** Flights on the same day share the same weather and knock-on delays, so they aren't independent. Resampling days, not single flights, gives honest ranges.
+- **I gave all three methods the same rules.** The optimizer, the greedy rule and the random baseline all follow the exact same "a spare is busy for H hours" rule. Otherwise the optimizer could win just by having looser rules.
 
 ## Limitations
 

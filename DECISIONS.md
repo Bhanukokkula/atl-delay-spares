@@ -82,3 +82,10 @@ Choices made by Claude (please review):
 - Open Graph and Twitter tags with a 1200 × 627 `docs/preview.png` drawn from `phase4_sensitivity.csv` / `phase4_summary.csv`. URLs use Bhanukokkula / atl-delay-spares; the GitHub Pages hostname is lowercase.
 - `docs/brief.pdf` is a copy of `outputs/brief.pdf` so Pages can serve it.
 - The Streamlit draft (`app.py`) was never committed and was deleted when 7d changed.
+
+## README draft sections (2026-11-15)
+
+Request (word for word):
+> Rewrite the two [EDIT IN MY WORDS] sections in the README yourself. could you rewrite that in my human explainable simple way
+
+"What didn't work" and "Why I made these choices" were rewritten by Claude in first person and plain language, and the [EDIT IN MY WORDS] markers were removed. All numbers are unchanged from the outputs.

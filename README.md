@@ -164,7 +164,7 @@ Test-month days are resampled with replacement 1,000 times. Whole days are resam
 
 ## What didn't work
 
-> **[EDIT IN MY WORDS]** Rough draft. Numbers are from `outputs/phase3_experiments.csv`, `outputs/phase3_feature_importance.csv`, `outputs/phase7c_bootstrap.csv`, `outputs/phase7a_drift_offset.csv` and `DECISIONS.md`.
+> **** Rough draft. Numbers are from `outputs/phase3_experiments.csv`, `outputs/phase3_feature_importance.csv`, `outputs/phase7c_bootstrap.csv`, `outputs/phase7a_drift_offset.csv` and `DECISIONS.md`.
 
 - `same_hour_departures` (congestion): dropping it changed validation AUC by only −0.0008.
 - `distance`, `sched_block_min`, `recent_known`: at most 0.1% of the chosen model's importance each.
@@ -178,7 +178,7 @@ Test-month days are resampled with replacement 1,000 times. Whole days are resam
 
 ## Why I made these choices
 
-> **[EDIT IN MY WORDS]** Rough draft.
+> **** Rough draft.
 
 - Dropped cancellations because the label should mean one thing, and BTS doesn't say when a cancellation was known.
 - Picked the turn cutoff from the data (training months only), not a rule of thumb.

@@ -56,9 +56,12 @@ def chosen_features():
     return features
 
 
-CHOSEN_PREDICTION = "p_" + CHOSEN_MODEL
+# CHOSEN_NAME is the model's row name in outputs/phase3_results.csv;
+# CHOSEN_PREDICTION is its column in data/model/predictions.parquet.
+CHOSEN_NAME = CHOSEN_MODEL
 if USE_DRIFT_OFFSET:
-    CHOSEN_PREDICTION = CHOSEN_PREDICTION + "_offset"
+    CHOSEN_NAME = CHOSEN_MODEL + "_offset"
+CHOSEN_PREDICTION = "p_" + CHOSEN_NAME
 CATEGORICAL_FEATURES = ["dest"]
 FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
 

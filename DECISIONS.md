@@ -73,3 +73,12 @@ Choices made by Claude (please review):
 - Spare metrics resample the per-day results in `phase4_daily.csv` (default S = 3, R = 0.6, H = 4); hit rate = assigned flights really delayed / assigned flights, pooled over the resampled days. The random baseline's per-day numbers are already averages over 20 seeds.
 - Added the test ROC-AUC gain of (b) + weather over (b) (raw model outputs). Its interval, −0.0005 to 0.0071, includes zero, so the weather gain is not clearly real on the test month.
 - Script order changed so the bootstrap runs before the brief: `07_brief.py` → `08_brief.py`, `08_bootstrap.py` → `07_bootstrap.py`. (`08_bootstrap.py` and `09_demo.py` were committed early by mistake in the 7b commit.)
+
+**7d. Static demo (GitHub Pages)**
+- `docs/index.html`: plain HTML + JavaScript, Chart.js 4.4.1 from cdnjs, light and dark mode, phone layout (stacked controls, 2-column tiles, table scrolls inside its box with a "swipe" hint). Checked in headless Chrome at a true 390 px viewport and at 1280 px, in both color schemes.
+- `src/09_demo.py` precomputes all 31 days × S 1–5 × H 2–8 (1,085 settings, both methods) by calling the `05_spares.py` functions directly, and fails if the default setting does not match `outputs/phase4_daily.csv` for every day (it matched). `docs/demo_data.json` is 930 KB (238 KB gzipped, as GitHub Pages serves it). Every flight of each day is included so the chart shows the whole day.
+- Spare numbers on the page (Spare 1, 2, 3) are for display only: assigned flights are numbered by first-fit in time order, which always works for a plan that obeys the busy rule (the script fails otherwise). Totals are unaffected.
+- R is fixed at 0.6 on the page, matching the README default.
+- Open Graph and Twitter tags with a 1200 × 627 `docs/preview.png` drawn from `phase4_sensitivity.csv` / `phase4_summary.csv`. URLs use Bhanukokkula / atl-delay-spares; the GitHub Pages hostname is lowercase.
+- `docs/brief.pdf` is a copy of `outputs/brief.pdf` so Pages can serve it.
+- The Streamlit draft (`app.py`) was never committed and was deleted when 7d changed.

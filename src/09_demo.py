@@ -29,8 +29,8 @@ S_VALUES = [1, 2, 3, 4, 5]
 H_VALUES = [2, 3, 4, 5, 6, 7, 8]
 DOCS = "docs"
 MODEL_LABELS = {
-    "p_lgbm_swap_safe": "LightGBM, swap-safe features",
-    "p_lgbm_swap_safe_weather": "LightGBM, swap-safe features + ATL weather",
+    "lgbm_swap_safe": "LightGBM, swap-safe features",
+    "lgbm_swap_safe_weather": "LightGBM, swap-safe features + ATL weather",
 }
 
 
@@ -110,10 +110,17 @@ def run_day(group):
     return rows, runs
 
 
+def model_label():
+    label = MODEL_LABELS[config.CHOSEN_MODEL]
+    if config.USE_DRIFT_OFFSET:
+        label = label + ", with a daily correction fitted on the previous 7 days"
+    return label
+
+
 def month_results():
     # Short lines for the page footer, all read from step outputs.
     results = pd.read_csv("outputs/phase3_results.csv")
-    model = config.CHOSEN_PREDICTION.replace("p_", "")
+    model = config.CHOSEN_NAME
     row = results[(results["model"] == model) & (results["split"] == "test")].iloc[0]
     summary = pd.read_csv("outputs/phase4_summary.csv").set_index("method")
     boot = pd.read_csv("outputs/phase7c_bootstrap.csv").set_index("metric")
@@ -139,18 +146,18 @@ def preview_image(path):
     rows = sens[(sens["R"] == spares.R_DEFAULT) & (sens["H"] == spares.H_DEFAULT)]
 
     fig = plt.figure(figsize=(12, 6.27), dpi=100, facecolor="#fcfcfb")
-    fig.text(0.05, 0.86, "Delay risk and spare aircraft placement at ATL", fontsize=30,
+    fig.text(0.05, 0.87, "Delay risk and spare aircraft placement at ATL", fontsize=27,
              fontweight="bold", color="#0b0b0b")
-    fig.text(0.05, 0.79, "Predicting 15+ min departure delays 2 hours ahead, then placing spare aircraft",
-             fontsize=17, color="#52514e")
-    fig.text(0.05, 0.06, "Independent demo on public BTS data. Not affiliated with Delta.",
+    fig.text(0.05, 0.80, "Predicting 15+ min departure delays 2 hours ahead, then placing spare aircraft",
+             fontsize=16, color="#52514e")
+    fig.text(0.05, 0.04, "Independent demo on public BTS data. Not affiliated with Delta.",
              fontsize=15, color="#5a4300", fontweight="bold")
     greedy_pct = summary.loc["greedy", "pct_of_optimization"]
     fig.text(0.62, 0.55, f"Greedy reaches\n{greedy_pct:.1f}% of optimal", fontsize=26,
              color="#0b0b0b", va="center")
     fig.text(0.62, 0.38, "Test month, 3 spares, H = 4 h", fontsize=15, color="#52514e")
 
-    ax = fig.add_axes([0.07, 0.17, 0.48, 0.55])
+    ax = fig.add_axes([0.08, 0.22, 0.47, 0.50])
     styles = [("optimization", "Optimization", "#2a78d6", "o"),
               ("greedy", "Greedy", "#eb6834", "s"),
               ("random", "Random", "#1baf7a", "^")]
@@ -200,8 +207,8 @@ def main():
 
     meta = {
         "test_month": test["year_month"].iloc[0],
-        "model_label": MODEL_LABELS[config.CHOSEN_PREDICTION],
-        "uses_weather": "weather" in config.CHOSEN_PREDICTION,
+        "model_label": model_label(),
+        "uses_weather": "weather" in config.CHOSEN_MODEL,
         "R": spares.R_DEFAULT,
         "s_values": S_VALUES,
         "h_values": H_VALUES,

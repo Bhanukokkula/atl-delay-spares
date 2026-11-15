@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATL Spare Aircraft Demo</title>
+<meta name="description" content="Independent demo on public BTS data: which Delta mainline departures from Atlanta are at risk of a 15+ minute delay, and where a few spare aircraft would help most. Not affiliated with Delta.">
+<!-- Open Graph / LinkedIn preview. -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Delay risk and spare aircraft placement at ATL">
+<meta property="og:description" content="Independent demo on public BTS data. Predicts 15+ minute departure delays 2 hours ahead and compares an optimization model with a greedy rule for placing spare aircraft. Not affiliated with Delta.">
+<meta property="og:image" content="https://bhanukokkula.github.io/atl-delay-spares/preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+<meta property="og:url" content="https://bhanukokkula.github.io/atl-delay-spares/">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --surface: #fcfcfb;
+    --surface-2: #f3f2ef;
+    --border: #e4e3df;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --banner-bg: #fff4d6;
+    --banner-text: #5a4300;
+    --series-opt: #2a78d6;
+    --series-greedy: #eb6834;
+    --series-other: #a3a29c;
+    --grid: #e4e3df;
+    --link: #1c5cab;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface: #1a1a19;
+      --surface-2: #242423;
+      --border: #3a3936;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --banner-bg: #3a3014;
+      --banner-text: #f5dc9a;
+      --series-opt: #3987e5;
+      --series-greedy: #d95926;
+      --series-other: #6b6a65;
+      --grid: #33322f;
+      --link: #86b6ef;
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface: #1a1a19;
+    --surface-2: #242423;
+    --border: #3a3936;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --banner-bg: #3a3014;
+    --banner-text: #f5dc9a;
+    --series-opt: #3987e5;
+    --series-greedy: #d95926;
+    --series-other: #6b6a65;
+    --grid: #33322f;
+    --link: #86b6ef;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--surface);
+    color: var(--text-primary);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  a { color: var(--link); }
+  .banner {
+    background: var(--banner-bg);
+    color: var(--banner-text);
+    padding: 10px 16px;
+    font-weight: 600;
+    text-align: center;
+    font-size: 14px;
+  }
+  main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 24px; line-height: 1.25; margin: 8px 0 6px; }
+  h2 { font-size: 17px; margin: 28px 0 8px; }
+  .lead { color: var(--text-secondary); margin: 0 0 16px; }
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .controls label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+  .controls output { font-weight: 600; color: var(--text-primary); }
+  select, input[type="range"] { width: 100%; }
+  select {
+    font: inherit; padding: 6px 8px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-primary);
+  }
+  input[type="range"] { accent-color: var(--series-opt); height: 28px; }
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin: 16px 0 4px;
+  }
+  .tile { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .tile .label { font-size: 12px; color: var(--text-secondary); }
+  .tile .value { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .tile .sub { font-size: 12px; color: var(--text-secondary); }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+  .swatch.tri { border-radius: 0; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 10px solid var(--series-greedy); background: none; }
+  .chart-box { position: relative; height: 320px; width: 100%; }
+  .note { font-size: 13px; color: var(--text-secondary); }
+  .table-tools { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 4px 0 8px; font-size: 14px; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { font-size: 12px; color: var(--text-secondary); font-weight: 600; background: var(--surface-2); }
+  td.num, th.num { text-align: right; }
+  tr:last-child td { border-bottom: none; }
+  .tag { font-size: 12px; font-weight: 600; padding: 1px 6px; border-radius: 4px; border: 1px solid; }
+  .tag.opt { color: var(--series-opt); border-color: var(--series-opt); }
+  .tag.greedy { color: var(--series-greedy); border-color: var(--series-greedy); }
+  footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); }
+  footer ul { padding-left: 18px; }
+  .swipe-hint { display: none; margin: 0 0 6px; }
+  @media (max-width: 700px) {
+    .swipe-hint { display: block; }
+    .controls { grid-template-columns: 1fr; }
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    h1 { font-size: 20px; }
+    .tile .value { font-size: 20px; }
+    .chart-box { height: 280px; }
+  }
+</style>
+</head>
+<body>
+<div class="banner" role="note">Independent demo on public BTS data. Not affiliated with Delta.</div>
+<main>
+  <h1>Delay risk and spare aircraft placement: Delta mainline departures from Atlanta</h1>
+  <p class="lead" id="lead">Loading…</p>
+
+  <section class="controls" aria-label="Settings">
+    <div>
+      <label for="day">Day</label>
+      <select id="day"></select>
+    </div>
+    <div>
+      <label for="spares">Spare aircraft (S): <output id="spares-out">3</output></label>
+      <input id="spares" type="range" min="1" max="5" step="1" value="3">
+    </div>
+    <div>
+      <label for="hours">Hours a spare is busy after use (H): <output id="hours-out">4</output></label>
+      <input id="hours" type="range" min="2" max="8" step="1" value="4">
+    </div>
+  </section>
+
+  <section class="tiles" aria-label="Results for this day">
+    <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-opt)"></span>Optimization</div>
+      <div class="value" id="opt-min">–</div><div class="sub" id="opt-sub">expected minutes saved</div></div>
+    <div class="tile"><div class="label"><span class="swatch tri"></span>Greedy</div>
+      <div class="value" id="greedy-min">–</div><div class="sub" id="greedy-sub">expected minutes saved</div></div>
+    <div class="tile"><div class="label">Greedy as % of optimization</div>
+      <div class="value" id="pct">–</div><div class="sub">expected minutes</div></div>
+    <div class="tile"><div class="label">Departures this day</div>
+      <div class="value" id="n-flights">–</div><div class="sub" id="n-delayed"></div></div>
+  </section>
+
+  <h2>Risk by scheduled departure time</h2>
+  <p class="note">Each dot is one departure. Blue circles get a spare under the optimization; orange triangles under the greedy rule. Hover or tap a point for details.</p>
+  <div class="chart-box"><canvas id="chart" aria-label="Scatter chart of risk minutes by departure time"></canvas></div>
+
+  <h2>Flights ranked by risk</h2>
+  <div class="table-tools">
+    <label><input type="radio" name="view" value="top" checked> Top 25 + flights with a spare</label>
+    <label><input type="radio" name="view" value="assigned"> Only flights with a spare</label>
+    <label><input type="radio" name="view" value="all"> All flights</label>
+  </div>
+  <p class="note swipe-hint">Swipe the table sideways to see every column.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th class="num">Rank</th><th>Sched.</th><th>DL flight</th><th>To</th>
+        <th class="num">P(15+ delay)</th><th class="num">Risk min</th>
+        <th>Optimization</th><th>Greedy</th><th>Really delayed 15+</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <footer>
+    <p id="method"></p>
+    <ul id="month-results"></ul>
+    <p>
+      <a id="repo-link" href="https://github.com/Bhanukokkula/atl-delay-spares">Code and method on GitHub</a> ·
+      <a href="brief.pdf">Two-page brief (PDF)</a>
+    </p>
+    <p>Data: U.S. DOT Bureau of Transportation Statistics On-Time Performance (reporting carrier DL only; Delta Connection flights are reported by other carriers and are out of scope)<span id="weather-credit"></span>. This is an independent portfolio project. It is not affiliated with or endorsed by Delta Air Lines and uses no Delta internal data.</p>
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+  let DATA = null;
+  let chart = null;
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function hhmm(minute) {
+    const h = Math.floor(minute / 60);
+    const m = minute % 60;
+    return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+  }
+
+  function fmt(x, digits) {
+    return Number(x).toFixed(digits);
+  }
+
+  function currentRun() {
+    const dayIndex = Number(document.getElementById("day").value);
+    const s = document.getElementById("spares").value;
+    const h = document.getElementById("hours").value;
+    const day = DATA.days[dayIndex];
+    return { day: day, run: day.runs["S" + s + "_H" + h] };
+  }
+
+  function updateTiles(day, run) {
+    document.getElementById("opt-min").textContent = fmt(run.opt_min, 1);
+    document.getElementById("greedy-min").textContent = fmt(run.greedy_min, 1);
+    document.getElementById("opt-sub").textContent =
+      "expected minutes saved · " + run.opt.length + " spare uses, " + run.opt_hits + " really delayed";
+    document.getElementById("greedy-sub").textContent =
+      "expected minutes saved · " + run.greedy.length + " spare uses, " + run.greedy_hits + " really delayed";
+    const pct = run.opt_min > 0 ? 100 * run.greedy_min / run.opt_min : 0;
+    document.getElementById("pct").textContent = fmt(pct, 1) + "%";
+    document.getElementById("n-flights").textContent = day.n_flights;
+    document.getElementById("n-delayed").textContent = day.n_delayed + " really delayed 15+";
+  }
+
+  function spareLookup(pairs) {
+    // pairs: [[flightIndex, spareNumber], ...] -> {flightIndex: spareNumber}
+    const out = {};
+    for (const pair of pairs) {
+      out[pair[0]] = pair[1];
+    }
+    return out;
+  }
+
+  function updateChart(day, run) {
+    const optSpare = spareLookup(run.opt);
+    const greedySpare = spareLookup(run.greedy);
+    const others = [];
+    const opt = [];
+    const greedy = [];
+    day.flights.forEach(function (f, i) {
+      const point = { x: f[0], y: f[4], i: i };
+      if (i in optSpare) opt.push(point);
+      if (i in greedySpare) greedy.push(point);
+      if (!(i in optSpare) && !(i in greedySpare)) others.push(point);
+    });
+
+    const text = cssVar("--text-secondary");
+    const grid = cssVar("--grid");
+    const surface = cssVar("--surface");
+    const datasets = [
+      { label: "Optimization spare", data: opt, pointStyle: "circle", pointRadius: 7, pointHoverRadius: 9,
+        backgroundColor: cssVar("--series-opt"), borderColor: surface, borderWidth: 2, order: 1 },
+      { label: "Greedy spare", data: greedy, pointStyle: "triangle", pointRadius: 7, pointHoverRadius: 9,
+        backgroundColor: cssVar("--series-greedy"), borderColor: surface, borderWidth: 2, order: 0 },
+      { label: "No spare", data: others, pointStyle: "circle", pointRadius: 3, pointHoverRadius: 5,
+        backgroundColor: cssVar("--series-other"), borderWidth: 0, order: 2 },
+    ];
+
+    if (chart) {
+      chart.data.datasets = datasets;
+      chart.options.scales.x.ticks.color = text;
+      chart.options.scales.y.ticks.color = text;
+      chart.options.scales.x.title.color = text;
+      chart.options.scales.y.title.color = text;
+      chart.options.scales.x.grid.color = grid;
+      chart.options.scales.y.grid.color = grid;
+      chart.options.plugins.legend.labels.color = text;
+      chart.update();
+      return;
+    }
+    chart = new Chart(document.getElementById("chart"), {
+      type: "scatter",
+      data: { datasets: datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: "nearest", intersect: false, axis: "xy" },
+        plugins: {
+          legend: { position: "top", align: "start",
+                    labels: { color: text, usePointStyle: true, boxWidth: 8, boxHeight: 8,
+                              // Same order as the tiles: optimization, greedy, no spare.
+                              sort: function (a, b) { return a.datasetIndex - b.datasetIndex; } } },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                const f = DATA.days[Number(document.getElementById("day").value)].flights[ctx.raw.i];
+                return "DL " + f[1] + " to " + f[2] + " at " + hhmm(f[0]) +
+                       " · P " + fmt(f[3], 2) + " · " + fmt(f[4], 1) + " risk min" +
+                       (f[5] === 1 ? " · really delayed" : "");
+              },
+            },
+          },
+        },
+        scales: {
+          x: { type: "linear", min: 300, max: 1440,
+               // Fixed ticks every 3 hours from 06:00, so 05:00 is the edge but not labelled.
+               afterBuildTicks: function (axis) {
+                 axis.ticks = [360, 540, 720, 900, 1080, 1260, 1440].map(function (v) { return { value: v }; });
+               },
+               ticks: { color: text, callback: function (v) { return hhmm(v); } },
+               grid: { color: grid }, title: { display: true, text: "Scheduled departure (ATL local)", color: text } },
+          y: { beginAtZero: true, ticks: { color: text }, grid: { color: grid },
+               title: { display: true, text: "Risk minutes", color: text } },
+        },
+      },
+    });
+  }
+
+  function updateTable(day, run) {
+    const optSpare = spareLookup(run.opt);
+    const greedySpare = spareLookup(run.greedy);
+    const view = document.querySelector('input[name="view"]:checked').value;
+    // Flights are stored in risk order, so the list index is the rank.
+    const rows = [];
+    day.flights.forEach(function (f, i) {
+      const hasSpare = (i in optSpare) || (i in greedySpare);
+      let show = false;
+      if (view === "all") show = true;
+      if (view === "assigned") show = hasSpare;
+      if (view === "top") show = i < 25 || hasSpare;
+      if (!show) return;
+      rows.push(
+        "<tr><td class='num'>" + (i + 1) + "</td><td>" + hhmm(f[0]) + "</td><td>" + f[1] +
+        "</td><td>" + f[2] + "</td><td class='num'>" + fmt(f[3], 2) + "</td><td class='num'>" + fmt(f[4], 1) +
+        "</td><td>" + (i in optSpare ? "<span class='tag opt'>Spare " + optSpare[i] + "</span>" : "") +
+        "</td><td>" + (i in greedySpare ? "<span class='tag greedy'>Spare " + greedySpare[i] + "</span>" : "") +
+        "</td><td>" + (f[5] === 1 ? "yes" : "no") + "</td></tr>");
+    });
+    document.getElementById("rows").innerHTML = rows.join("");
+  }
+
+  function refresh() {
+    document.getElementById("spares-out").textContent = document.getElementById("spares").value;
+    document.getElementById("hours-out").textContent = document.getElementById("hours").value;
+    const cur = currentRun();
+    updateTiles(cur.day, cur.run);
+    updateChart(cur.day, cur.run);
+    updateTable(cur.day, cur.run);
+  }
+
+  function fillText(meta) {
+    document.getElementById("lead").textContent =
+      "Test month " + meta.test_month + ". A model predicts, 2 hours before each scheduled departure, the chance of a " +
+      "15+ minute departure delay. Pick a day and a number of spare aircraft to see where an optimization model and a " +
+      "simple greedy rule (highest risk first) would place them.";
+    document.getElementById("method").textContent =
+      "Risk minutes = predicted probability × average delay minutes of delayed flights in that departure hour " +
+      "(training months). A spare removes " + Math.round(meta.R * 100) + "% of a flight's risk minutes and is then busy " +
+      "for H hours. Model: " + meta.model_label + ". Results are precomputed for every day, S = 1–5 and H = 2–8.";
+    const list = document.getElementById("month-results");
+    for (const line of meta.month_results) {
+      const li = document.createElement("li");
+      li.textContent = line;
+      list.appendChild(li);
+    }
+    if (meta.uses_weather) {
+      document.getElementById("weather-credit").textContent =
+        " and ATL weather observations from the Iowa Environmental Mesonet ASOS archive";
+    }
+  }
+
+  fetch("demo_data.json")
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      DATA = data;
+      fillText(data.meta);
+      const select = document.getElementById("day");
+      data.days.forEach(function (d, i) {
+        const opt = document.createElement("option");
+        opt.value = i;
+        opt.textContent = d.label;
+        select.appendChild(opt);
+      });
+      select.addEventListener("change", refresh);
+      document.getElementById("spares").addEventListener("input", refresh);
+      document.getElementById("hours").addEventListener("input", refresh);
+      document.querySelectorAll('input[name="view"]').forEach(function (el) {
+        el.addEventListener("change", refresh);
+      });
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", refresh);
+      refresh();
+    })
+    .catch(function (err) {
+      document.getElementById("lead").textContent = "Could not load demo_data.json (" + err + ").";
+    });
+</script>
+</body>
+</html>

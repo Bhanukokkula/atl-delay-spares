@@ -57,3 +57,13 @@ Choices made by Claude (please review):
 - Validation is not scored with the offset: its first week would need in-sample training-day predictions.
 - Result: it helps calibration and does not change ranking. Backtest mean calibration error 0.0191 → 0.0107, month-severity correlation −0.87 → −0.07, mean ROC-AUC 0.7640 → 0.7633. Four months got slightly worse calibration. Test month: calibration error 0.0131 → 0.0094, mean prediction 21.2% → 22.1% vs 22.3% actual.
 - Phase 4 is not changed in this step; the model and offset used for Phase 4 are chosen in 7b.
+
+**7b. ATL weather**
+- Source: IEM ASOS archive, station ATL, routine (type 3) and special (type 4) reports, downloaded in UTC and converted to America/New_York (handles daylight saving), one file per month (`src/02b_weather.py`). 20,422 observations; longest gap 3.0 h.
+- Feature definitions: `wx_thunder` = any weather code containing "TS" (includes VCTS, thunderstorm in the vicinity); `wx_precip` = any of RA, SN, DZ, PL, GR, GS, IC, UP; `wx_ceiling_ft` = lowest BKN/OVC/VV layer, 20,000 ft when none; `wx_gust_kt` = 0 when no gust reported; `wx_visibility_mi` as reported.
+- Matching: latest observation at or before decision time (`merge_asof`, backward, exact matches allowed). The program fails if any matched observation is after decision time. Observations older than 3 h would be treated as missing; none were (median age at decision time 26 min). METAR reports are sent a few minutes after their observation time; this small lag is ignored.
+- The model choice was made on validation only: (b) + weather had validation ROC-AUC 0.8000 vs 0.7950, PR-AUC 0.6313 vs 0.6190, Brier 0.1361 vs 0.1382, so it was chosen. Its validation calibration error was slightly worse (0.0085 vs 0.0078).
+- Drift offset kept on for the chosen model (`config.USE_DRIFT_OFFSET = True`) because it improved calibration in the 18-month backtest for both models. On the test month it helped the weather model less (calibration error 0.0144 → 0.0135) than model (b) (0.0131 → 0.0094).
+- The backtest (Phase 5 outputs and 7a before/after) now uses the chosen model, so `phase5_backtest.csv`, `backtest.png`, `phase7a_*` and `drift_offset.png` are for (b) + weather. Model (b)'s backtest numbers are in the 7a commit.
+- Feature importance output is now for the chosen model.
+- Phase 4 is rerun with `p_lgbm_swap_safe_weather_offset`. `phase7b_phase4_models.csv` compares all four versions at default settings. Across versions, minutes removed on actual outcomes is the fair comparison; expected minutes depend on each version's probability level.

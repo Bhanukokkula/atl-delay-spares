@@ -6,11 +6,12 @@ For each day, three ways to assign S spare aircraft to flights:
   - random: random order, first free spare (averaged over several seeds)
 
 Reads:  data/features/features.parquet   (training flights, for delay minutes by hour)
-        data/model/predictions.parquet   (test-month predictions from model b)
+        data/model/predictions.parquet   (test-month predictions, config.CHOSEN_PREDICTION)
 Writes: outputs/phase4_hourly_delay_minutes.csv
         outputs/phase4_daily.csv          per-day results at the default settings
         outputs/phase4_summary.csv        comparison at the default settings
         outputs/phase4_sensitivity.csv    results for other S, R, H
+        outputs/phase7b_phase4_models.csv default results for each model version
         outputs/spares_by_s.png
 """
 import os
@@ -241,6 +242,22 @@ def plot_by_s(sensitivity, path):
     plt.close(fig)
 
 
+def build_days(test, pred_col, minutes_by_hour):
+    # risk minutes = probability x average delay minutes of delayed flights in that hour.
+    test = test.copy()
+    test["risk"] = test[pred_col] * test["dep_hour"].map(minutes_by_hour)
+    test["minute"] = (test["sched_dep"] - test["flight_date"]).dt.total_seconds() / 60
+    # One list of plain dicts per day keeps the loops easy to read.
+    days = {}
+    for day, group in test.groupby("flight_date"):
+        flights = []
+        for _, row in group.iterrows():
+            flights.append({"minute": row["minute"], "risk": row["risk"],
+                            "delayed": int(row[config.LABEL]), "dep_delay": row["dep_delay"]})
+        days[day.date().isoformat()] = flights
+    return days
+
+
 def main():
     features = pd.read_parquet("data/features/features.parquet")
     train = features[features["split"] == "train"]
@@ -250,19 +267,24 @@ def main():
 
     predictions = pd.read_parquet("data/model/predictions.parquet")
     test = predictions[predictions["split"] == "test"].copy()
-    test["risk"] = test[config.CHOSEN_PREDICTION] * test["dep_hour"].map(minutes_by_hour)
-    test["minute"] = (test["sched_dep"] - test["flight_date"]).dt.total_seconds() / 60
-    print(f"Test flights: {len(test)}, days: {test['flight_date'].nunique()}, "
-          f"mean risk minutes per flight: {test['risk'].mean():.2f}")
+    days = build_days(test, config.CHOSEN_PREDICTION, minutes_by_hour)
+    print(f"Prediction column: {config.CHOSEN_PREDICTION}")
 
-    # One list of plain dicts per day keeps the loops easy to read.
-    days = {}
-    for day, group in test.groupby("flight_date"):
-        flights = []
-        for _, row in group.iterrows():
-            flights.append({"minute": row["minute"], "risk": row["risk"],
-                            "delayed": int(row[config.LABEL]), "dep_delay": row["dep_delay"]})
-        days[day.date().isoformat()] = flights
+    # Phase 7b: the same default run for each model version, to show what the
+    # weather features and the drift offset change in the spare decisions.
+    compare = []
+    for col in ["p_lgbm_swap_safe", "p_lgbm_swap_safe_offset",
+                "p_lgbm_swap_safe_weather", "p_lgbm_swap_safe_weather_offset"]:
+        version_days = build_days(test, col, minutes_by_hour)
+        version = summarize(run_month(version_days, S_DEFAULT, R_DEFAULT, H_DEFAULT),
+                            S_DEFAULT, R_DEFAULT, H_DEFAULT)
+        version.insert(0, "prediction", col)
+        compare.append(version)
+    compare = pd.concat(compare, ignore_index=True)
+    compare.to_csv(os.path.join(OUT_DIR, "phase7b_phase4_models.csv"), index=False)
+    print("\nDefault settings by model version:")
+    print(compare[["prediction", "method", "expected_min_removed_per_day", "pct_of_optimization",
+                   "share_assigned_really_delayed_pct", "actual_min_removed_per_day_if_R_holds"]].to_string(index=False))
 
     # Default run.
     daily = run_month(days, S_DEFAULT, R_DEFAULT, H_DEFAULT)

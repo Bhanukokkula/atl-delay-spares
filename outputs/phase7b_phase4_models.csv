@@ -1,0 +1,13 @@
+prediction,S,R,H,method,days,expected_min_removed_per_day,assignments_per_day,share_assigned_really_delayed_pct,actual_min_removed_per_day_if_R_holds,pct_of_optimization
+p_lgbm_swap_safe,3,0.6,4,optimization,31,239.7,13.6,46.7,209.7,100.0
+p_lgbm_swap_safe,3,0.6,4,greedy,31,219.4,11.8,47.7,205.5,91.5
+p_lgbm_swap_safe,3,0.6,4,random,31,86.5,11.1,21.9,90.0,36.1
+p_lgbm_swap_safe_offset,3,0.6,4,optimization,31,246.1,13.7,46.7,213.4,100.0
+p_lgbm_swap_safe_offset,3,0.6,4,greedy,31,224.5,11.8,47.7,205.3,91.2
+p_lgbm_swap_safe_offset,3,0.6,4,random,31,90.2,11.1,21.9,90.0,36.7
+p_lgbm_swap_safe_weather,3,0.6,4,optimization,31,240.5,13.6,46.4,224.7,100.0
+p_lgbm_swap_safe_weather,3,0.6,4,greedy,31,220.3,11.8,49.2,212.9,91.6
+p_lgbm_swap_safe_weather,3,0.6,4,random,31,86.7,11.1,21.9,90.0,36.0
+p_lgbm_swap_safe_weather_offset,3,0.6,4,optimization,31,247.2,13.6,46.2,221.3,100.0
+p_lgbm_swap_safe_weather_offset,3,0.6,4,greedy,31,226.5,11.8,49.0,217.5,91.6
+p_lgbm_swap_safe_weather_offset,3,0.6,4,random,31,90.4,11.1,21.9,90.0,36.6

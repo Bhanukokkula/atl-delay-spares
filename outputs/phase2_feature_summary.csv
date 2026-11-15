@@ -14,3 +14,8 @@ recent_known,0.522,0.931
 recent_avg_delay,0.682,9.244
 recent_count,0.535,60.064
 backlog_count,0.686,5.46
+wx_thunder,0.516,0.014
+wx_precip,0.525,0.066
+wx_visibility_mi,0.522,9.341
+wx_ceiling_ft,0.537,14933.377
+wx_gust_kt,0.528,3.163

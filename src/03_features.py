@@ -1,6 +1,7 @@
 """Step 3: build model features that are known 2 hours before departure.
 
-Reads:  data/clean/departures.parquet, data/clean/arrivals.parquet
+Reads:  data/clean/departures.parquet, data/clean/arrivals.parquet,
+        data/clean/weather.parquet
 Writes: data/features/features.parquet
         outputs/phase2_feature_summary.csv
         outputs/phase2_turn_buckets.csv
@@ -234,13 +235,42 @@ def add_recent_delay(dep):
     return dep
 
 
+def add_weather(dep):
+    # Latest ATL observation at or before decision time (2 hours before
+    # scheduled departure). Nothing observed after decision time can be used.
+    weather = pd.read_parquet(os.path.join(CLEAN_DIR, "weather.parquet"))
+    weather = weather.sort_values("obs_time")
+    dep["decision_time"] = dep["sched_dep"] - pd.Timedelta(hours=config.DECISION_HOURS_BEFORE)
+    dep = dep.sort_values("decision_time")
+    dep = pd.merge_asof(dep, weather, left_on="decision_time", right_on="obs_time",
+                        direction="backward", allow_exact_matches=True)
+
+    # Leakage check: fail loudly if any observation is later than decision time.
+    late = dep["obs_time"] > dep["decision_time"]
+    if late.any():
+        raise RuntimeError(f"LEAKAGE: {int(late.sum())} weather observations after decision time")
+
+    # A very old observation means the station had a gap; treat it as missing.
+    age_hours = (dep["decision_time"] - dep["obs_time"]).dt.total_seconds() / 3600
+    stale = dep["obs_time"].isna() | (age_hours > config.WEATHER_MAX_AGE_HOURS)
+    for col in config.WEATHER_FEATURES:
+        dep.loc[stale, col] = np.nan
+    median_age_min = 60 * age_hours.median()
+    print(f"Weather: median observation age at decision time {median_age_min:.0f} min; "
+          f"missing or older than {config.WEATHER_MAX_AGE_HOURS} h: {int(stale.sum())} flights")
+    dep = dep.drop(columns=["decision_time", "obs_time"])
+    # Put rows back in their original order so every other step is unchanged.
+    return dep.sort_values("row_id").reset_index(drop=True)
+
+
 def single_feature_auc_check(dep):
     # Second leakage guard: no single feature should predict the label almost
     # perfectly. If one does, it is probably measuring the outcome.
     train = dep[dep["split"] == "train"]
     rows = []
-    for col in config.NUMERIC_FEATURES:
-        auc = roc_auc_score(train[config.LABEL], train[col])
+    for col in config.NUMERIC_FEATURES + config.WEATHER_FEATURES:
+        values = train[col].fillna(train[col].median())
+        auc = roc_auc_score(train[config.LABEL], values)
         strength = max(auc, 1 - auc)
         rows.append({"feature": col, "single_feature_auc": round(strength, 3)})
         if strength > 0.9:
@@ -260,6 +290,7 @@ def main():
     dep = add_recent_delay(dep)        # uses all flights that departed
     dep = add_backlog(dep)
     dep = add_inbound_features(dep, arr)
+    dep = add_weather(dep)
 
     # Checkpoint 1 decision (Option A): cancelled flights are not scored.
     n_before = len(dep)
@@ -270,20 +301,20 @@ def main():
     dep = apply_turn_cutoff(dep)
     dep = add_route_delay_rate(dep)
 
-    config.check_no_leakage(config.FEATURES)
+    config.check_no_leakage(config.FEATURES + config.WEATHER_FEATURES)
     auc_table = single_feature_auc_check(dep)
 
     # Keep ids, label, and dep_delay (needed in Phase 4 for delay minutes; it is
     # NOT a feature and check_no_leakage blocks it from the model).
     keep = (["row_id", "year_month", "split", "flight_date", "flight_number", "tail",
-             "sched_dep", "dep_delay", config.LABEL] + config.FEATURES)
+             "sched_dep", "dep_delay", config.LABEL] + config.FEATURES + config.WEATHER_FEATURES)
     dep = dep[keep]
     dep.to_parquet(os.path.join(FEATURE_DIR, "features.parquet"), index=False)
 
     # Summary for the checkpoint.
     summary = auc_table.copy()
     means = []
-    for col in config.NUMERIC_FEATURES:
+    for col in config.NUMERIC_FEATURES + config.WEATHER_FEATURES:
         means.append(round(dep[col].mean(), 3))
     summary["mean"] = means
     summary.to_csv(os.path.join(OUT_DIR, "phase2_feature_summary.csv"), index=False)

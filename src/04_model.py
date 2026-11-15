@@ -34,7 +34,7 @@ INK = "#2b2b2b"
 GRID = "#e4e3df"
 
 # Models that also get the daily drift offset (Phase 7a).
-OFFSET_MODELS = ["lgbm_swap_safe"]
+OFFSET_MODELS = ["lgbm_swap_safe", "lgbm_swap_safe_weather"]
 
 # Feature groups, used to test what each group adds.
 GROUPS = {
@@ -170,7 +170,7 @@ def plot_importance(importance, path):
     for i, value in enumerate(top["gain_share"] * 100):
         ax.text(value + 0.5, i, f"{value:.1f}%", va="center", fontsize=8, color=INK)
     ax.set_xlabel("Share of total split gain (%)", color=INK)
-    ax.set_title("LightGBM feature importance (swap-safe features)", color=INK, fontsize=11)
+    ax.set_title(f"LightGBM feature importance ({config.CHOSEN_MODEL})", color=INK, fontsize=11)
     ax.grid(axis="x", color=GRID, linewidth=0.8)
     ax.set_axisbelow(True)
     for side in ["top", "right"]:
@@ -209,9 +209,12 @@ def main():
 
     # 2) LightGBM, three feature sets: (a) all, (b) swap-safe, (c) no inbound.
     main_model = None
+    swap_safe_weather = swap_safe + config.WEATHER_FEATURES   # Phase 7b
     lgbm_runs = [("lgbm_all", config.FEATURES),
                  ("lgbm_swap_safe", swap_safe),
-                 ("lgbm_no_inbound", no_inbound)]
+                 ("lgbm_no_inbound", no_inbound),
+                 ("lgbm_swap_safe_weather", swap_safe_weather)]
+    features_by_model = {}
     for name, features in lgbm_runs:
         model, (p_valid, p_test) = fit_lgbm(train, valid, [valid, test], features)
         print(f"{name}: {model.best_iteration_} trees")
@@ -219,7 +222,8 @@ def main():
         test["p_" + name] = p_test
         results.append(score(name, "valid", valid[config.LABEL], p_valid))
         results.append(score(name, "test", test[config.LABEL], p_test))
-        if name == "lgbm_swap_safe":
+        features_by_model[name] = features
+        if name == config.CHOSEN_MODEL:
             main_model = model
 
     # 2b) Daily drift offset (Phase 7a). Each day's predictions are shifted by
@@ -245,9 +249,9 @@ def main():
     print()
     print(results.to_string(index=False))
 
-    # 3) Feature importance (gain) for the chosen model (b).
+    # 3) Feature importance (gain) for the chosen model.
     gain = main_model.booster_.feature_importance(importance_type="gain")
-    importance = pd.DataFrame({"feature": swap_safe, "gain": gain})
+    importance = pd.DataFrame({"feature": features_by_model[config.CHOSEN_MODEL], "gain": gain})
     importance["gain_share"] = importance["gain"] / importance["gain"].sum()
     importance = importance.sort_values("gain_share", ascending=False)
     importance.to_csv(os.path.join(OUT_DIR, "phase3_feature_importance.csv"), index=False)
@@ -299,7 +303,7 @@ def main():
 
     keep = (["row_id", "split", "year_month", "flight_date", "flight_number", "tail",
              "sched_dep", "dep_hour", "dep_delay", config.LABEL,
-             "p_logistic_all", "p_logistic_no_inbound", "p_lgbm_all", "p_lgbm_swap_safe", "p_lgbm_no_inbound"])
+             "p_logistic_all", "p_logistic_no_inbound", "p_lgbm_all", "p_lgbm_swap_safe", "p_lgbm_no_inbound", "p_lgbm_swap_safe_weather"])
     for name in OFFSET_MODELS:
         keep.append("p_" + name + "_offset")
     predictions = pd.concat([valid[keep], test[keep]], ignore_index=True)

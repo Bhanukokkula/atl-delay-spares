@@ -39,10 +39,33 @@ INBOUND_FEATURES = ["has_inbound", "turn_min", "inbound_delay_known", "inbound_d
 # The inbound features most exposed to aircraft swaps. Removing them gives the
 # "swap-safe" feature set (option b, chosen at Checkpoint 3).
 SWAP_EXPOSED = ["turn_min", "has_inbound", "inbound_delay_known"]
-# Prediction column used by the spare-aircraft step.
-CHOSEN_PREDICTION = "p_lgbm_swap_safe"
+# Model used by the spare-aircraft step, the backtest, and the demo.
+# Phase 7b picks between "lgbm_swap_safe" and "lgbm_swap_safe_weather" using
+# validation only. USE_DRIFT_OFFSET adds the daily offset from Phase 7a.
+CHOSEN_MODEL = "lgbm_swap_safe_weather"
+USE_DRIFT_OFFSET = True
+
+
+def chosen_features():
+    features = []
+    for col in FEATURES:
+        if col not in SWAP_EXPOSED:
+            features.append(col)
+    if CHOSEN_MODEL == "lgbm_swap_safe_weather":
+        features = features + WEATHER_FEATURES
+    return features
+
+
+CHOSEN_PREDICTION = "p_" + CHOSEN_MODEL
+if USE_DRIFT_OFFSET:
+    CHOSEN_PREDICTION = CHOSEN_PREDICTION + "_offset"
 CATEGORICAL_FEATURES = ["dest"]
 FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
+
+# ATL weather (Phase 7b): taken from the latest observation at or before
+# decision time. Kept separate so models (a), (b), (c) stay unchanged.
+WEATHER_FEATURES = ["wx_thunder", "wx_precip", "wx_visibility_mi", "wx_ceiling_ft", "wx_gust_kt"]
+WEATHER_MAX_AGE_HOURS = 3   # older observations are treated as missing
 
 # Anything measured after decision time for the flight itself, plus all delay
 # cause columns. Both the raw BTS names and our cleaned names are listed.
@@ -66,5 +89,5 @@ def check_no_leakage(columns):
     if bad:
         raise RuntimeError(f"LEAKAGE: forbidden columns in model input: {bad}")
     for col in columns:
-        if col not in FEATURES:
+        if col not in FEATURES and col not in WEATHER_FEATURES:
             raise RuntimeError(f"LEAKAGE CHECK: '{col}' is not on the approved feature list")

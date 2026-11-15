@@ -1,4 +1,4 @@
-"""Step 6: month-by-month backtest of the chosen model (b, swap-safe features).
+"""Step 6: month-by-month backtest of the chosen model (config.CHOSEN_MODEL).
 
 For each month m: train on all months before m, test on month m.
 The route delay rate is recomputed inside every fold from earlier months only,
@@ -29,7 +29,7 @@ import drift
 
 OUT_DIR = "outputs"
 MIN_TRAIN_MONTHS = 6     # first backtest month needs at least this much history
-N_TREES = 200            # early stopping chose 198 for model (b) in step 4
+N_TREES = 200            # early stopping chose 198 (b) and 208 (b + weather) in step 4
 
 BLUE = "#2a78d6"
 ORANGE = "#eb6834"
@@ -84,7 +84,7 @@ def plot_backtest(table, path):
 
     axes[0].plot(months, table["roc_auc"], color=BLUE, linewidth=2, marker="o", markersize=6)
     axes[0].set_ylabel("ROC-AUC", color=INK)
-    axes[0].set_title("Model (b) backtest: train on all earlier months, test on each month",
+    axes[0].set_title(f"{config.CHOSEN_MODEL} backtest: train on all earlier months, test on each month",
                       color=INK, fontsize=11)
 
     axes[1].plot(months, table["calibration_error"], color=BLUE, linewidth=2, marker="o", markersize=6)
@@ -111,11 +111,10 @@ def plot_backtest(table, path):
 
 def main():
     df = pd.read_parquet("data/features/features.parquet")
-    features = []
-    for col in config.FEATURES:
-        if col not in config.SWAP_EXPOSED:
-            features.append(col)
+    # The chosen model's features (Phase 7b: swap-safe + ATL weather).
+    features = config.chosen_features()
     config.check_no_leakage(features)
+    print(f"Backtest model: {config.CHOSEN_MODEL}, {len(features)} features")
 
     months = sorted(df["year_month"].unique())
     rows = []

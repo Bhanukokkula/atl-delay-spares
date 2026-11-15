@@ -1,0 +1,9 @@
+metric,estimate,ci95_low,ci95_high
+test_roc_auc,0.7722,0.7441,0.798
+test_roc_auc_gain_weather_vs_b,0.0031,-0.0005,0.0071
+hit_rate_optimization_pct,46.2085,40.333,51.6436
+hit_rate_greedy_pct,49.0463,43.2113,55.6452
+hit_rate_random_pct,21.9186,18.3898,26.0375
+hit_rate_optimization_minus_random_pts,24.2899,19.9463,28.4389
+hit_rate_greedy_minus_random_pts,27.1277,22.8927,31.8777
+greedy_pct_of_optimal,91.6126,90.4367,92.8224

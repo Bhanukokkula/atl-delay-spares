@@ -1,4 +1,4 @@
-"""Step 8: 95% intervals by resampling days of the test month.
+"""Step 7: 95% intervals by resampling days of the test month.
 
 Flights on the same day share weather and knock-on delays, so they are not
 independent. We therefore resample whole days (with replacement), 1,000 times,
@@ -31,10 +31,15 @@ def main():
     days = sorted(daily["day"].unique())
     y_by_day = {}
     p_by_day = {}
+    p_weather_by_day = {}
+    p_no_weather_by_day = {}
     for day, group in test.groupby("flight_date"):
         key = day.date().isoformat()
         y_by_day[key] = group[config.LABEL].to_numpy()
         p_by_day[key] = group[config.CHOSEN_PREDICTION].to_numpy()
+        # Raw model outputs, to test whether the weather features really help.
+        p_weather_by_day[key] = group["p_lgbm_swap_safe_weather"].to_numpy()
+        p_no_weather_by_day[key] = group["p_lgbm_swap_safe"].to_numpy()
 
     spare = {}
     for method in ["optimization", "greedy", "random"]:
@@ -45,6 +50,9 @@ def main():
         y = np.concatenate([y_by_day[d] for d in sample_days])
         p = np.concatenate([p_by_day[d] for d in sample_days])
         result = {"test_roc_auc": roc_auc_score(y, p)}
+        p_w = np.concatenate([p_weather_by_day[d] for d in sample_days])
+        p_nw = np.concatenate([p_no_weather_by_day[d] for d in sample_days])
+        result["test_roc_auc_gain_weather_vs_b"] = roc_auc_score(y, p_w) - roc_auc_score(y, p_nw)
         hit = {}
         for method in ["optimization", "greedy", "random"]:
             rows = spare[method].loc[sample_days]

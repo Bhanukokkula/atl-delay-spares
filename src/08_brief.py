@@ -1,4 +1,4 @@
-"""Step 7: build the 2-page brief (outputs/brief.pdf).
+"""Step 8: build the 2-page brief (outputs/brief.pdf).
 
 Every number in the brief is read from the CSV files written by steps 2-6,
 so nothing is typed in by hand.

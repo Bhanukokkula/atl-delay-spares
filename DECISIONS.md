@@ -67,3 +67,9 @@ Choices made by Claude (please review):
 - The backtest (Phase 5 outputs and 7a before/after) now uses the chosen model, so `phase5_backtest.csv`, `backtest.png`, `phase7a_*` and `drift_offset.png` are for (b) + weather. Model (b)'s backtest numbers are in the 7a commit.
 - Feature importance output is now for the chosen model.
 - Phase 4 is rerun with `p_lgbm_swap_safe_weather_offset`. `phase7b_phase4_models.csv` compares all four versions at default settings. Across versions, minutes removed on actual outcomes is the fair comparison; expected minutes depend on each version's probability level.
+
+**7c. Uncertainty**
+- Day-level bootstrap (whole test-month days resampled with replacement, 1,000 times, seed 42); 95% intervals are the 2.5th and 97.5th percentiles (`src/07_bootstrap.py`). Days, not flights, because flights on the same day share weather and knock-on delays.
+- Spare metrics resample the per-day results in `phase4_daily.csv` (default S = 3, R = 0.6, H = 4); hit rate = assigned flights really delayed / assigned flights, pooled over the resampled days. The random baseline's per-day numbers are already averages over 20 seeds.
+- Added the test ROC-AUC gain of (b) + weather over (b) (raw model outputs). Its interval, −0.0005 to 0.0071, includes zero, so the weather gain is not clearly real on the test month.
+- Script order changed so the bootstrap runs before the brief: `07_brief.py` → `08_brief.py`, `08_bootstrap.py` → `07_bootstrap.py`. (`08_bootstrap.py` and `09_demo.py` were committed early by mistake in the 7b commit.)
